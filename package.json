@@ -1,0 +1,18 @@
+{
+  "name": "lanesync-starter",
+  "version": "0.1.0",
+  "description": "Starter Node.js project scaffolded by LaneSync.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "jest-html-reporter": {
+    "outputPath": "test-report.html",
+    "pageTitle": "Unit Test Report"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-html-reporter": "^3.10.2"
+  }
+}
