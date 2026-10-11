@@ -36,7 +36,7 @@ jobs:
         uses: ./.github/actions/lanesync-upload
         if: always()
         with:
-          api-url: ${{ vars.SDLC_API_URL || 'https://lanesync.dev' }}
+          api-url: ${{ vars.SDLC_API_URL || 'https://unrelishable-erika-nonfactiously.ngrok-free.dev' }}
           api-key: ${{ secrets.LANESYNC_API_KEY }}
           dev-branch: "main"
           release-prefix: "release/"
