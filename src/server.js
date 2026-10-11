@@ -1,9 +1,15 @@
 const http = require('http');
+const { version } = require('../package.json');
 
 function handleRequest(req, res) {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+  if (req.method === 'GET' && req.url === '/version') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ version }));
     return;
   }
   res.writeHead(404, { 'Content-Type': 'application/json' });
