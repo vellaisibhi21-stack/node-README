@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "jest"
+    "test": "jest",
+    "serve": "node src/server.js"
   },
   "jest-html-reporter": {
     "outputPath": "test-report.html",
