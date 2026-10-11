@@ -2,6 +2,9 @@
 # This file is owned by LaneSync. Future "Update workflows" PRs may replace
 # custom edits you make here. Review the PR diff before merging.
 name: "Deploy to Production"
+# LaneSync records a production deployment only for the verified candidate: keep the full
+# candidate SHA in the run name (this workflow runs on its own ref, not on the candidate).
+run-name: "Deploy ${{ inputs.release_version }} (${{ inputs.candidate_sha }})"
 
 on:
   workflow_dispatch:
