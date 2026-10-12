@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Verify LaneSync deployment gate for this commit
         env:
-          LANESYNC_API_URL: "https://unrelishable-erika-nonfactiously.ngrok-free.dev"
+          LANESYNC_API_URL: "https://lanesync.dev"
           RELEASE_VERSION: ${{ github.event.inputs.release_version }}
           CANDIDATE_SHA: ${{ github.event.inputs.candidate_sha }}
           REPOSITORY: ${{ github.event.repository.name }}
