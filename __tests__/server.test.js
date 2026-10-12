@@ -23,6 +23,12 @@ describe('[feat-2] Health endpoint', () => {
     expect(await response.json()).toEqual({ status: 'ok' });
   });
 
+  test('GET /version reports the package version', async () => {
+    const response = await fetch(`${baseUrl}/version`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ version: require('../package.json').version });
+  });
+
   test('unknown routes return 404', async () => {
     const response = await fetch(`${baseUrl}/missing`);
     expect(response.status).toBe(404);

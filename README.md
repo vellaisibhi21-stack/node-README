@@ -16,6 +16,14 @@ npm install
 |---------|--------------|
 | `npm test` | Runs the Jest suite with HTML and coverage reports |
 | `npm start` | Runs the sample program in `src/index.js` |
+| `npm run serve` | Starts the HTTP server on `PORT` (default 3000) |
+
+## Endpoints
+
+| Endpoint | Response |
+|----------|----------|
+| `GET /health` | `{"status":"ok"}` |
+| `GET /version` | `{"version":"<package.json version>"}` |
 
 ## Contributing
 

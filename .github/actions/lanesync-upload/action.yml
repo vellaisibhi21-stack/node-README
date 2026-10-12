@@ -168,30 +168,32 @@ runs:
           esac
         fi
 
-        pct() { awk -v c="$1" -v t="$2" 'BEGIN { if (t > 0) printf "%d", (c / t) * 100; else print 0 }'; }
-        COV_PCT=0
+        # Two decimals: rounding 79.6% up to 80 would pass a min_line_percent: 80 gate.
+        # COV_PCT stays empty (not measured) unless a coverage report was parsed.
+        pct() { awk -v c="$1" -v t="$2" 'BEGIN { if (t > 0) printf "%.2f", (c / t) * 100 }'; }
+        COV_PCT=""
         case "$COV_FORMAT" in
           cobertura)
             RATE=$({ grep -oE '<coverage[^>]*line-rate="[0-9.]+"' "$COV_FILE" || true; } | head -1 | sed -E 's/.*line-rate="([0-9.]+)".*/\1/')
-            [ -n "$RATE" ] && COV_PCT=$(awk -v r="$RATE" 'BEGIN { printf "%d", r * 100 }')
+            [ -n "$RATE" ] && COV_PCT=$(awk -v r="$RATE" 'BEGIN { printf "%.2f", r * 100 }')
             ;;
           jacoco)
             # The report-level LINE counter is the last one in the file.
             LINE=$({ grep -oE '<counter type="LINE" missed="[0-9]+" covered="[0-9]+"' "$COV_FILE" || true; } | tail -1)
             M=$(echo "$LINE" | sed -nE 's/.*missed="([0-9]+)".*/\1/p'); C=$(echo "$LINE" | sed -nE 's/.*covered="([0-9]+)".*/\1/p')
-            COV_PCT=$(pct "${C:-0}" "$(( ${M:-0} + ${C:-0} ))")
+            [ -n "$C" ] && COV_PCT=$(pct "$C" "$(( ${M:-0} + C ))")
             ;;
           clover)
             # The project-level <metrics> element is the last one in the file.
             MET=$({ grep -oE '<metrics [^>]*>' "$COV_FILE" || true; } | tail -1)
             S=$(echo "$MET" | sed -nE 's/.* statements="([0-9]+)".*/\1/p'); C=$(echo "$MET" | sed -nE 's/.*coveredstatements="([0-9]+)".*/\1/p')
-            COV_PCT=$(pct "${C:-0}" "${S:-0}")
+            [ -n "$C" ] && COV_PCT=$(pct "$C" "${S:-0}")
             ;;
           lcov)
-            COV_PCT=$(awk -F: '/^LH:/{h+=$2} /^LF:/{f+=$2} END { if (f > 0) printf "%d", (h / f) * 100; else print 0 }' "$COV_FILE")
+            COV_PCT=$(awk -F: '/^LH:/{h+=$2} /^LF:/{f+=$2} END { if (f > 0) printf "%.2f", (h / f) * 100 }' "$COV_FILE")
             ;;
           gocover)
-            COV_PCT=$(awk 'NR > 1 && NF == 3 { t += $2; if ($3 > 0) c += $2 } END { if (t > 0) printf "%d", (c / t) * 100; else print 0 }' "$COV_FILE")
+            COV_PCT=$(awk 'NR > 1 && NF == 3 { t += $2; if ($3 > 0) c += $2 } END { if (t > 0) printf "%.2f", (c / t) * 100 }' "$COV_FILE")
             ;;
         esac
 
@@ -257,17 +259,25 @@ runs:
         [ -f "$SARIF" ] && append_file "$OUT/sast.json" "$SARIF" sarif
         [ -f "$OUT/trivy.json" ] && append_file "$OUT/cve.json" "$OUT/trivy.json" trivy
 
+        # A metric block is sent only when its report was found, parsed and attached. A scanner that
+        # failed to install or run leaves no report, which LaneSync shows as "not measured"
+        # (and a configured quality gate blocks) instead of a fake clean 0/0/0.
+        # Only reports actually attached count: LaneSync re-derives the numbers from them, and an
+        # oversized report is skipped above.
+        HAS_SAST=$(jq 'length > 0' "$OUT/sast.json")
+        HAS_CVE=$(jq 'length > 0' "$OUT/cve.json")
+        [ -n "$COV_FORMAT" ] && [ "$(jq 'length' "$OUT/coverage.json")" = 0 ] && COV_PCT=""
         jq -n \
           --argjson unit_total "$UNIT_TOTAL" --argjson unit_passed "$UNIT_PASSED" --argjson unit_failed "$UNIT_FAILED" \
-          --argjson cov_pct "$COV_PCT" \
+          --arg cov_pct "$COV_PCT" \
+          --argjson has_sast "$HAS_SAST" --argjson has_cve "$HAS_CVE" \
           --argjson sast_crit "$SAST_CRIT" --argjson sast_high "$SAST_HIGH" --argjson sast_med "$SAST_MED" \
           --argjson cve_crit "$CVE_CRIT" --argjson cve_high "$CVE_HIGH" --argjson cve_med "$CVE_MED" \
-          '{
-            unit_tests: { total: $unit_total, passed: $unit_passed, failed: $unit_failed },
-            coverage: { line_percent: $cov_pct },
-            sast_scan: { vulnerabilities: { critical: $sast_crit, high: $sast_high, medium: $sast_med } },
-            security: { tool: "trivy", vulnerabilities: { critical: $cve_crit, high: $cve_high, medium: $cve_med } }
-          }' > "$OUT/metrics.json"
+          '{ unit_tests: { total: $unit_total, passed: $unit_passed, failed: $unit_failed } }
+            + (if $cov_pct != "" then { coverage: { line_percent: ($cov_pct | tonumber) } } else {} end)
+            + (if $has_sast then { sast_scan: { vulnerabilities: { critical: $sast_crit, high: $sast_high, medium: $sast_med } } } else {} end)
+            + (if $has_cve then { security: { tool: "trivy", vulnerabilities: { critical: $cve_crit, high: $cve_high, medium: $cve_med } } } else {} end)
+          ' > "$OUT/metrics.json"
 
         jq -n \
           --arg org "$ORG" --arg repo "${GITHUB_REPOSITORY#*/}" \
@@ -383,7 +393,7 @@ runs:
           echo "| Environment | \`$ENVIRONMENT\` |"
           echo "| Version | \`$VERSION\` |"
           echo "| Tests | $UNIT_PASSED passed / $UNIT_FAILED failed / $UNIT_TOTAL total |"
-          echo "| Coverage | $COV_PCT% |"
+          echo "| Coverage | ${COV_PCT:+$COV_PCT%}${COV_PCT:-Not measured} |"
           case "$STATUS" in
             success) echo "| Upload | Success${EVIDENCE_ID:+ (evidence \`$EVIDENCE_ID\`)} |" ;;
             failed)  echo "| Upload | Failed (non-blocking) |" ;;
